@@ -185,7 +185,6 @@ async function toggleCorepack() {
             v-model:value="selectedMirror"
             :options="mirrorOptions"
             placeholder="选择镜像源"
-            disabled
           />
 
           <NText depth="3" style="font-size: 12px">
