@@ -32,19 +32,60 @@ impl Default for FnmEnv {
 /// 获取 fnm 环境配置
 #[command]
 pub fn get_fnm_env() -> Result<FnmEnv, String> {
-    let mut cmd = create_fnm_command()?;
-    let output = cmd
-        .arg("env")
-        .output()
-        .map_err(|e| format!("执行 fnm env 失败: {}", e))?;
+    let mut env = FnmEnv::default();
 
-    if !output.status.success() {
-        return Err(String::from_utf8_lossy(&output.stderr).to_string());
+    // 直接设置 fnm 目录
+    env.fnm_dir = get_default_fnm_dir();
+
+    // 设置系统架构
+    env.arch = get_system_arch();
+
+    // 尝试从环境变量获取其他配置
+    if let Ok(mirror) = std::env::var("FNM_NODE_DIST_MIRROR") {
+        env.node_dist_mirror = mirror;
     }
 
-    let env_str = String::from_utf8(output.stdout).map_err(|e| e.to_string())?;
+    if let Ok(strategy) = std::env::var("FNM_VERSION_FILE_STRATEGY") {
+        env.version_file_strategy = strategy;
+    }
 
-    parse_fnm_env(&env_str)
+    if let Ok(corepack) = std::env::var("FNM_COREPACK_ENABLED") {
+        env.corepack_enabled = corepack.to_lowercase() == "true" || corepack == "1";
+    }
+
+    if let Ok(engines) = std::env::var("FNM_RESOLVE_ENGINES") {
+        env.resolve_engines = engines.to_lowercase() != "false" && engines != "0";
+    }
+
+    if let Ok(loglevel) = std::env::var("FNM_LOGLEVEL") {
+        env.loglevel = loglevel;
+    }
+
+    // 检测 corepack 是否实际启用（检查 default 版本的 bin 目录）
+    env.corepack_enabled = check_corepack_enabled(&env.fnm_dir);
+
+    Ok(env)
+}
+
+/// 检测 corepack 是否启用
+fn check_corepack_enabled(fnm_dir: &str) -> bool {
+    if fnm_dir.is_empty() {
+        return false;
+    }
+
+    let default_alias = std::path::PathBuf::from(fnm_dir).join("aliases").join("default");
+    if !default_alias.exists() {
+        return false;
+    }
+
+    if let Ok(version_path) = std::fs::read_link(&default_alias) {
+        // 检查是否有 yarn 或 pnpm 在 bin 目录（corepack enable 会创建这些）
+        let yarn_path = version_path.join("bin").join("yarn");
+        let pnpm_path = version_path.join("bin").join("pnpm");
+        return yarn_path.exists() || pnpm_path.exists();
+    }
+
+    false
 }
 
 /// 解析 fnm env 输出
