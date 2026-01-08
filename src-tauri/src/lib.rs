@@ -20,6 +20,7 @@ pub fn run() {
             set_default_version,
             // 环境变量 commands
             get_fnm_env,
+            toggle_corepack,
             // 文件系统 commands
             get_fnm_dir,
             get_version_dir,

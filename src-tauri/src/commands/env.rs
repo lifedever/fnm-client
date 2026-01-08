@@ -163,3 +163,32 @@ fn get_system_arch() -> String {
         "unknown".to_string()
     }
 }
+
+/// 切换 Corepack 状态
+#[command]
+pub fn toggle_corepack(enable: bool) -> Result<String, String> {
+    // 获取当前 Node 的 bin 目录
+    let mut cmd = create_fnm_command()?;
+    let output = cmd
+        .arg("exec")
+        .arg("--")
+        .arg("corepack")
+        .arg(if enable { "enable" } else { "disable" })
+        .output()
+        .map_err(|e| format!("执行 corepack 命令失败: {}", e))?;
+
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        // 如果是因为没有安装 Node，给出友好提示
+        if stderr.contains("Can't find") || stderr.contains("not found") {
+            return Err("请先安装并选择一个 Node.js 版本".to_string());
+        }
+        return Err(stderr.to_string());
+    }
+
+    Ok(if enable {
+        "Corepack 已启用".to_string()
+    } else {
+        "Corepack 已禁用".to_string()
+    })
+}

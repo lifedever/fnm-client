@@ -26,6 +26,7 @@ const message = useMessage();
 const selectedMirror = ref("");
 const debugInfo = ref("");
 const debugLoading = ref(false);
+const corepackLoading = ref(false);
 
 // 初始化
 onMounted(async () => {
@@ -71,6 +72,22 @@ async function runDebug() {
     debugInfo.value = `调试命令执行失败: ${e}`;
   } finally {
     debugLoading.value = false;
+  }
+}
+
+// 切换 Corepack 状态
+async function toggleCorepack() {
+  corepackLoading.value = true;
+  try {
+    const enable = !settingsStore.corepackEnabled;
+    const result = await invoke<string>("toggle_corepack", { enable });
+    message.success(result);
+    // 重新加载设置以更新状态
+    await settingsStore.loadSettings();
+  } catch (e) {
+    message.error(String(e));
+  } finally {
+    corepackLoading.value = false;
   }
 }
 </script>
@@ -127,11 +144,21 @@ async function runDebug() {
           </NDescriptionsItem>
 
           <NDescriptionsItem label="Corepack">
-            <NText
-              :type="settingsStore.corepackEnabled ? 'success' : 'default'"
-            >
-              {{ settingsStore.corepackEnabled ? "已启用" : "未启用" }}
-            </NText>
+            <NSpace align="center">
+              <NText
+                :type="settingsStore.corepackEnabled ? 'success' : 'default'"
+              >
+                {{ settingsStore.corepackEnabled ? "已启用" : "未启用" }}
+              </NText>
+              <NButton
+                size="tiny"
+                :type="settingsStore.corepackEnabled ? 'default' : 'primary'"
+                :loading="corepackLoading"
+                @click="toggleCorepack"
+              >
+                {{ settingsStore.corepackEnabled ? "禁用" : "启用" }}
+              </NButton>
+            </NSpace>
           </NDescriptionsItem>
 
           <NDescriptionsItem label="解析 Engines">
