@@ -2,5 +2,5 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 fn main() {
-    fnm_client_lib::run()
+    fnm_gui_lib::run()
 }

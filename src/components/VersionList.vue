@@ -24,7 +24,6 @@ import {
   TrashOutline,
   CheckmarkCircleOutline,
   FolderOpenOutline,
-  StarOutline,
 } from "@vicons/ionicons5";
 import { useVersionStore } from "@/stores/version";
 import type { NodeVersion } from "@/types/fnm";
@@ -38,7 +37,14 @@ const ltsOnly = ref(false);
 const activeTab = ref<"installed" | "remote">("installed");
 const installingVersion = ref<string | null>(null);
 
-// 计算属性
+// 分页状态
+const PAGE_SIZE = 10;
+const displayCount = ref(PAGE_SIZE);
+
+// 搜索防抖
+let searchTimeout: ReturnType<typeof setTimeout> | null = null;
+
+// 计算属性 - 已安装版本（本地过滤）
 const filteredInstalledVersions = computed(() => {
   return versionStore.getFilteredVersions("installed", {
     ltsOnly: ltsOnly.value,
@@ -46,11 +52,18 @@ const filteredInstalledVersions = computed(() => {
   });
 });
 
-const filteredRemoteVersions = computed(() => {
-  return versionStore.getFilteredVersions("remote", {
-    ltsOnly: ltsOnly.value,
-    keyword: searchKeyword.value,
-  });
+// 计算属性 - 远程版本（分页显示）
+const paginatedRemoteVersions = computed(() => {
+  const versions = versionStore.remoteVersions;
+  return versions.slice(0, displayCount.value);
+});
+
+const hasMoreRemoteVersions = computed(() => {
+  return displayCount.value < versionStore.remoteVersions.length;
+});
+
+const remainingCount = computed(() => {
+  return versionStore.remoteVersions.length - displayCount.value;
 });
 
 // 初始化
@@ -59,11 +72,34 @@ onMounted(async () => {
 });
 
 // 监听 Tab 切换，懒加载远程版本
-watch(activeTab, async (newVal) => {
+watch(activeTab, (newVal) => {
   if (newVal === "remote" && versionStore.remoteVersions.length === 0) {
-    await versionStore.fetchRemoteVersions({ lts: ltsOnly.value });
+    displayCount.value = PAGE_SIZE;
+    versionStore.fetchRemoteVersions({ lts: ltsOnly.value });
   }
 });
+
+// 搜索（防抖）
+function handleSearch() {
+  if (searchTimeout) {
+    clearTimeout(searchTimeout);
+  }
+  searchTimeout = setTimeout(() => {
+    if (activeTab.value === "remote") {
+      displayCount.value = PAGE_SIZE;
+      versionStore.fetchRemoteVersions({
+        lts: ltsOnly.value,
+        filter: searchKeyword.value || undefined,
+      });
+    }
+    // 已安装版本使用本地过滤，不需要额外处理
+  }, 500);
+}
+
+// 加载更多
+function loadMore() {
+  displayCount.value += PAGE_SIZE;
+}
 
 // 刷新版本列表
 async function handleRefresh() {
@@ -71,20 +107,25 @@ async function handleRefresh() {
     await versionStore.fetchInstalledVersions();
     message.success("已刷新本地版本列表");
   } else {
-    await versionStore.fetchRemoteVersions({ lts: ltsOnly.value });
+    displayCount.value = PAGE_SIZE;
+    await versionStore.fetchRemoteVersions({
+      lts: ltsOnly.value,
+      filter: searchKeyword.value || undefined,
+    });
     message.success("已刷新远程版本列表");
   }
 }
 
-// 使用版本
-async function handleUseVersion(version: NodeVersion) {
-  const success = await versionStore.useVersion(version.name);
-  if (success) {
-    message.success(`已切换到 ${version.name}`);
-  } else {
-    message.error(versionStore.error || "切换版本失败");
+// LTS 切换时重新获取远程版本
+watch(ltsOnly, (newVal) => {
+  if (activeTab.value === "remote") {
+    displayCount.value = PAGE_SIZE;
+    versionStore.fetchRemoteVersions({
+      lts: newVal,
+      filter: searchKeyword.value || undefined,
+    });
   }
-}
+});
 
 // 设为默认
 async function handleSetDefault(version: NodeVersion) {
@@ -156,6 +197,8 @@ async function handleOpenDir(version: NodeVersion) {
             placeholder="搜索版本..."
             clearable
             style="width: 200px"
+            @input="handleSearch"
+            @clear="handleSearch"
           />
           <NSpace align="center" :size="4">
             <span class="filter-label">仅 LTS</span>
@@ -171,11 +214,16 @@ async function handleOpenDir(version: NodeVersion) {
     </div>
 
     <!-- Tab 切换 -->
-    <NTabs v-model:value="activeTab" type="segment" animated>
+    <NTabs
+      v-model:value="activeTab"
+      type="segment"
+      animated
+      class="tabs-container"
+    >
       <!-- 已安装版本 -->
       <NTabPane name="installed" tab="已安装">
         <NSpin :show="versionStore.loading">
-          <NScrollbar style="max-height: calc(100vh - 260px)">
+          <NScrollbar class="version-scrollbar">
             <div
               v-if="filteredInstalledVersions.length === 0"
               class="empty-state"
@@ -210,27 +258,11 @@ async function handleOpenDir(version: NodeVersion) {
                           <NButton
                             size="small"
                             quaternary
-                            :disabled="version.isCurrent"
-                            @click="handleUseVersion(version)"
-                          >
-                            <template #icon>
-                              <CheckmarkCircleOutline />
-                            </template>
-                          </NButton>
-                        </template>
-                        使用此版本
-                      </NTooltip>
-
-                      <NTooltip>
-                        <template #trigger>
-                          <NButton
-                            size="small"
-                            quaternary
                             :disabled="version.isDefault"
                             @click="handleSetDefault(version)"
                           >
                             <template #icon>
-                              <StarOutline />
+                              <CheckmarkCircleOutline />
                             </template>
                           </NButton>
                         </template>
@@ -284,13 +316,13 @@ async function handleOpenDir(version: NodeVersion) {
       <!-- 远程版本 -->
       <NTabPane name="remote" tab="远程版本">
         <NSpin :show="versionStore.remoteLoading">
-          <NScrollbar style="max-height: calc(100vh - 260px)">
-            <div v-if="filteredRemoteVersions.length === 0" class="empty-state">
+          <NScrollbar class="version-scrollbar">
+            <div v-if="paginatedRemoteVersions.length === 0" class="empty-state">
               <NEmpty description="暂无可用版本" />
             </div>
             <NGrid v-else :cols="1" :y-gap="8">
               <NGi
-                v-for="version in filteredRemoteVersions"
+                v-for="version in paginatedRemoteVersions"
                 :key="version.name"
               >
                 <NCard size="small" hoverable class="version-card">
@@ -329,6 +361,19 @@ async function handleOpenDir(version: NodeVersion) {
                   </NSpace>
                 </NCard>
               </NGi>
+
+              <!-- 加载更多按钮 -->
+              <NGi v-if="hasMoreRemoteVersions">
+                <div class="load-more">
+                  <NButton
+                    text
+                    type="primary"
+                    @click="loadMore"
+                  >
+                    加载更多 (还有 {{ remainingCount }} 个版本)
+                  </NButton>
+                </div>
+              </NGi>
             </NGrid>
           </NScrollbar>
         </NSpin>
@@ -340,10 +385,15 @@ async function handleOpenDir(version: NodeVersion) {
 <style scoped>
 .version-list {
   padding: 16px;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
 }
 
 .toolbar {
-  margin-bottom: 16px;
+  margin-bottom: 12px;
+  flex-shrink: 0;
 }
 
 .filter-label {
@@ -351,21 +401,64 @@ async function handleOpenDir(version: NodeVersion) {
   color: var(--n-text-color-3);
 }
 
+.version-scrollbar {
+  flex: 1;
+  max-height: calc(100vh - 200px);
+}
+
+.tabs-container {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  min-height: 0;
+}
+
+.tabs-container :deep(.n-tabs-pane-wrapper) {
+  flex: 1;
+  overflow: hidden;
+  min-height: 0;
+}
+
+.tabs-container :deep(.n-tab-pane) {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.tabs-container :deep(.n-spin-container),
+.tabs-container :deep(.n-spin-content) {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
 .version-card {
   transition: all 0.2s ease;
 }
 
 .version-card:hover {
-  transform: translateY(-2px);
+  transform: translateY(-1px);
+}
+
+.version-card :deep(.n-card__content) {
+  padding: 8px 12px;
 }
 
 .version-name {
   font-weight: 600;
-  font-size: 15px;
+  font-size: 14px;
   font-family: "SF Mono", Monaco, monospace;
 }
 
 .empty-state {
-  padding: 40px 0;
+  padding: 32px 0;
+}
+
+.load-more {
+  text-align: center;
+  padding: 16px 0;
 }
 </style>

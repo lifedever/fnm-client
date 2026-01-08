@@ -11,16 +11,21 @@ import {
   NText,
   NTooltip,
   NSpin,
+  NCollapse,
+  NCollapseItem,
   useMessage,
 } from "naive-ui";
 import { FolderOpenOutline, CopyOutline } from "@vicons/ionicons5";
 import { useSettingsStore } from "@/stores/settings";
+import { invoke } from "@tauri-apps/api/core";
 
 const settingsStore = useSettingsStore();
 const message = useMessage();
 
 // 本地状态
 const selectedMirror = ref("");
+const debugInfo = ref("");
+const debugLoading = ref(false);
 
 // 初始化
 onMounted(async () => {
@@ -55,6 +60,18 @@ const mirrorOptions = settingsStore.mirrorOptions.map((m) => ({
 // 生成 export 命令
 function getExportCommand() {
   return `export FNM_NODE_DIST_MIRROR="${selectedMirror.value}"`;
+}
+
+// 调试 fnm 查找
+async function runDebug() {
+  debugLoading.value = true;
+  try {
+    debugInfo.value = await invoke<string>("debug_fnm_lookup");
+  } catch (e) {
+    debugInfo.value = `调试命令执行失败: ${e}`;
+  } finally {
+    debugLoading.value = false;
+  }
 }
 </script>
 
@@ -156,6 +173,43 @@ function getExportCommand() {
           </NSpace>
         </NSpace>
       </NCard>
+
+      <NDivider />
+
+      <NCollapse>
+        <NCollapseItem title="调试信息" name="debug">
+          <NSpace vertical :size="12">
+            <NSpace>
+              <NButton
+                size="small"
+                :loading="debugLoading"
+                @click="runDebug"
+              >
+                运行 fnm 检测诊断
+              </NButton>
+              <NButton
+                v-if="debugInfo"
+                size="small"
+                @click="copyToClipboard(debugInfo)"
+              >
+                复制调试信息
+              </NButton>
+            </NSpace>
+            <pre
+              v-if="debugInfo"
+              style="
+                background: #1a1a1a;
+                padding: 12px;
+                border-radius: 4px;
+                font-size: 12px;
+                overflow-x: auto;
+                white-space: pre-wrap;
+                word-break: break-all;
+              "
+            >{{ debugInfo }}</pre>
+          </NSpace>
+        </NCollapseItem>
+      </NCollapse>
     </NSpin>
   </div>
 </template>

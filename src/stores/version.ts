@@ -1,7 +1,7 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import { invoke } from '@tauri-apps/api/core'
-import type { NodeVersion, VersionFilter } from '@/types/fnm'
+import type { NodeVersion } from '@/types/fnm'
 import { parseInstalledVersions, parseRemoteVersions, filterVersions, compareVersions } from '@/utils/version-parser'
 
 export const useVersionStore = defineStore('version', () => {
@@ -48,13 +48,14 @@ export const useVersionStore = defineStore('version', () => {
   }
 
   // 获取远程版本
-  async function fetchRemoteVersions(filter?: VersionFilter) {
+  async function fetchRemoteVersions(options?: { lts?: boolean; filter?: string }) {
     remoteLoading.value = true
     error.value = null
 
     try {
       const result = await invoke<string>('list_remote_versions', {
-        ltsOnly: filter?.lts ?? false
+        ltsOnly: options?.lts ?? false,
+        filter: options?.filter || null
       })
 
       const installedNames = installedVersions.value.map(v => v.name)

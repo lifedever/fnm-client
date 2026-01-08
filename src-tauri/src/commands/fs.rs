@@ -1,3 +1,4 @@
+use super::common::create_fnm_command;
 use std::path::PathBuf;
 use std::process::Command;
 use tauri::command;
@@ -40,27 +41,24 @@ pub fn open_fnm_directory() -> Result<(), String> {
 /// 获取 fnm 基础目录
 fn get_fnm_base_dir() -> Result<String, String> {
     // 首先尝试从 fnm env 获取
-    let output = Command::new("fnm")
-        .arg("env")
-        .output()
-        .ok();
-
-    if let Some(out) = output {
-        if out.status.success() {
-            let env_str = String::from_utf8_lossy(&out.stdout);
-            for line in env_str.lines() {
-                if line.contains("FNM_DIR=") {
-                    let value = line
-                        .split("FNM_DIR=")
-                        .nth(1)
-                        .unwrap_or("")
-                        .trim()
-                        .trim_matches('"')
-                        .trim_matches('\'')
-                        .trim_end_matches(';')
-                        .to_string();
-                    if !value.is_empty() {
-                        return Ok(value);
+    if let Ok(mut cmd) = create_fnm_command() {
+        if let Ok(output) = cmd.arg("env").output() {
+            if output.status.success() {
+                let env_str = String::from_utf8_lossy(&output.stdout);
+                for line in env_str.lines() {
+                    if line.contains("FNM_DIR=") {
+                        let value = line
+                            .split("FNM_DIR=")
+                            .nth(1)
+                            .unwrap_or("")
+                            .trim()
+                            .trim_matches('"')
+                            .trim_matches('\'')
+                            .trim_end_matches(';')
+                            .to_string();
+                        if !value.is_empty() {
+                            return Ok(value);
+                        }
                     }
                 }
             }

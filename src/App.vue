@@ -66,13 +66,7 @@ function handleMenuSelect(key: string) {
       <NDialogProvider>
         <NLayout has-sider style="height: 100vh">
           <!-- 侧边栏 -->
-          <NLayoutSider
-            bordered
-            :width="180"
-            :collapsed-width="64"
-            show-trigger
-            collapse-mode="width"
-          >
+          <NLayoutSider bordered :width="180">
             <div class="logo">
               <span class="logo-icon">⚡</span>
               <span class="logo-text">fnm GUI</span>
@@ -80,17 +74,15 @@ function handleMenuSelect(key: string) {
             <NMenu
               :value="activeMenu"
               :options="menuOptions"
-              :collapsed-width="64"
-              :collapsed-icon-size="22"
               @update:value="handleMenuSelect"
             />
           </NLayoutSider>
 
           <!-- 主内容区 -->
-          <NLayout>
-            <NLayoutContent
-              style="height: calc(100vh - 50px); overflow: hidden"
-            >
+          <NLayout
+            content-style="display: flex; flex-direction: column; height: 100%;"
+          >
+            <NLayoutContent style="flex: 1; overflow: hidden">
               <!-- 版本管理 -->
               <VersionList v-if="activeMenu === 'versions'" />
 
@@ -119,7 +111,7 @@ function handleMenuSelect(key: string) {
             </NLayoutContent>
 
             <!-- 状态栏 -->
-            <NLayoutFooter bordered style="height: 50px">
+            <NLayoutFooter bordered>
               <StatusBar />
             </NLayoutFooter>
           </NLayout>
@@ -141,8 +133,11 @@ html,
 body,
 #app {
   height: 100%;
+  background-color: #18181c;
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen,
     Ubuntu, Cantarell, sans-serif;
+  overflow: hidden;
+  overscroll-behavior: none;
 }
 
 /* 禁止文本选择（桌面应用体验） */

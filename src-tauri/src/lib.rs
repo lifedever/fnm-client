@@ -1,5 +1,6 @@
 mod commands;
 
+use commands::common::*;
 use commands::env::*;
 use commands::fs::*;
 use commands::version::*;
@@ -24,6 +25,8 @@ pub fn run() {
             get_version_dir,
             open_version_directory,
             open_fnm_directory,
+            // 调试 commands
+            debug_fnm_lookup,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

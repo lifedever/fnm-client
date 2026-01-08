@@ -1,5 +1,5 @@
+use super::common::create_fnm_command;
 use serde::{Deserialize, Serialize};
-use std::process::Command;
 use tauri::command;
 
 /// fnm 环境配置信息
@@ -32,7 +32,8 @@ impl Default for FnmEnv {
 /// 获取 fnm 环境配置
 #[command]
 pub fn get_fnm_env() -> Result<FnmEnv, String> {
-    let output = Command::new("fnm")
+    let mut cmd = create_fnm_command()?;
+    let output = cmd
         .arg("env")
         .output()
         .map_err(|e| format!("执行 fnm env 失败: {}", e))?;
@@ -113,10 +114,15 @@ fn extract_env_value(line: &str, key: &str) -> Option<String> {
 
 /// 获取默认的 fnm 目录
 fn get_default_fnm_dir() -> String {
+    let home = dirs::home_dir();
+
     #[cfg(target_os = "macos")]
     {
-        if let Ok(home) = std::env::var("HOME") {
-            return format!("{}/Library/Application Support/fnm", home);
+        if let Some(home_dir) = home {
+            return home_dir
+                .join("Library/Application Support/fnm")
+                .to_string_lossy()
+                .to_string();
         }
     }
 
@@ -129,8 +135,11 @@ fn get_default_fnm_dir() -> String {
 
     #[cfg(target_os = "linux")]
     {
-        if let Ok(home) = std::env::var("HOME") {
-            return format!("{}/.local/share/fnm", home);
+        if let Some(home_dir) = home {
+            return home_dir
+                .join(".local/share/fnm")
+                .to_string_lossy()
+                .to_string();
         }
     }
 

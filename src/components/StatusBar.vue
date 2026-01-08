@@ -1,9 +1,15 @@
 <script setup lang="ts">
-import { computed } from "vue";
+import { computed, ref, onMounted } from "vue";
 import { NSpace, NText, NDivider, NTag } from "naive-ui";
 import { useVersionStore } from "@/stores/version";
+import { getVersion } from "@tauri-apps/api/app";
 
 const versionStore = useVersionStore();
+const appVersion = ref("");
+
+onMounted(async () => {
+  appVersion.value = await getVersion();
+});
 
 const statusText = computed(() => {
   const current = versionStore.currentVersion;
@@ -35,7 +41,7 @@ const installedCount = computed(() => versionStore.installedVersions.length);
         </NSpace>
       </NSpace>
 
-      <NText depth="3" style="font-size: 12px"> fnm GUI v0.1.0 </NText>
+      <NText depth="3" style="font-size: 12px"> fnm GUI v{{ appVersion }} </NText>
     </NSpace>
   </div>
 </template>
