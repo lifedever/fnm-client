@@ -167,22 +167,35 @@ fn get_system_arch() -> String {
 /// 切换 Corepack 状态
 #[command]
 pub fn toggle_corepack(enable: bool) -> Result<String, String> {
-    // 获取当前 Node 的 bin 目录
-    let mut cmd = create_fnm_command()?;
-    let output = cmd
-        .arg("exec")
-        .arg("--")
-        .arg("corepack")
+    // 获取 fnm 目录
+    let fnm_dir = get_default_fnm_dir();
+    if fnm_dir.is_empty() {
+        return Err("无法确定 fnm 目录".to_string());
+    }
+
+    // 读取 default 别名指向的版本
+    let default_alias = std::path::PathBuf::from(&fnm_dir).join("aliases").join("default");
+    if !default_alias.exists() {
+        return Err("请先设置一个默认 Node.js 版本".to_string());
+    }
+
+    let version_path = std::fs::read_link(&default_alias)
+        .map_err(|_| "无法读取默认版本".to_string())?;
+
+    // 构建 corepack 路径
+    let corepack_path = version_path.join("bin").join("corepack");
+    if !corepack_path.exists() {
+        return Err("找不到 corepack，请确保 Node.js 版本 >= 16.9.0".to_string());
+    }
+
+    // 执行 corepack enable/disable
+    let output = std::process::Command::new(&corepack_path)
         .arg(if enable { "enable" } else { "disable" })
         .output()
         .map_err(|e| format!("执行 corepack 命令失败: {}", e))?;
 
     if !output.status.success() {
         let stderr = String::from_utf8_lossy(&output.stderr);
-        // 如果是因为没有安装 Node，给出友好提示
-        if stderr.contains("Can't find") || stderr.contains("not found") {
-            return Err("请先安装并选择一个 Node.js 版本".to_string());
-        }
         return Err(stderr.to_string());
     }
 
